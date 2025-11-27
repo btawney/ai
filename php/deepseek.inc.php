@@ -38,10 +38,14 @@ class Session {
     $this->model = 'deepseek-chat';
     $this->stream = false;
     $this->temperature = 1.3; // Recommended for translation
-    $this->errorListeners = array();
     $this->endpointURL = 'https://api.deepseek.com';
     $this->maxTries = 2;
     $this->pauseBetweenRetriesInSeconds = 30;
+
+    // Listeners
+    $this->errorListeners = array();
+    $this->requestListeners = array();
+    $this->responseListeners = array();
 
     // Pricing per 1M tokens
     $this->hitPrice = 0.028;
@@ -251,6 +255,18 @@ class Conversation {
   function temperature($v) {
     $this->temperature = $v;
     return $this;
+  }
+
+  function addSystemMessage($message) {
+    $this->messages[] = new Message('system', $message);
+  }
+
+  function addUserMessage($message) {
+    $this->messages[] = new Message('user', $message);
+  }
+
+  function addAgentMessage($message) {
+    $this->messages[] = new Message('agent', $message);
   }
 
   function ask($prompt = false, $semaphore = false, $depth = 3) {
