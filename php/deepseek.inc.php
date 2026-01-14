@@ -34,6 +34,9 @@ class Session {
 
   var $balanceURL;
 
+  // Debugging
+  var $echo;
+
   function __construct($config = false) {
     $this->model = 'deepseek-chat';
     $this->stream = false;
@@ -56,6 +59,9 @@ class Session {
     $this->out = 0;
     $this->balance = false;
     $this->balanceURL = 'https://api.deepseek.com/user/balance';
+
+    // Debugging
+    $this->echo = false;
 
     if ($config === false) {
       if (file_exists('/opt/btawney/ai/deepseek.json')) {
@@ -124,6 +130,11 @@ class Session {
 
   function balanceURL($v) {
     $this->balanceURL = $v;
+    return $this;
+  }
+
+  function echo($v = true) {
+    $this->echo = $v;
     return $this;
   }
 
@@ -273,11 +284,14 @@ class Conversation {
     // Prompt would be false for a continuation
     if ($prompt !== false) {
       $this->messages[] = new Message('user', $prompt);
+      if ($this->session->echo) {
+        print ">>> $prompt\n";
+      }
     }
     $response = $this->submit();
 
     // A false response here is probably a persistent HTTP error
-    if ($response === false) {
+    if ($response === false || !property_exists($response, 'choices')) {
       $this->session->raiseError('Conversation->ask, failed to get a response');
       return false;
     }
@@ -302,13 +316,6 @@ class Conversation {
       $this->session->updateUsage($hit, $miss, $out);
     }
 
-    if ($response === false
-      || !property_exists($response, 'choices')
-      ) {
-      $this->session->raiseError('Conversation->ask, response was missing choices');
-      return false;
-    }
-
     $answer = false;
     foreach ($response->choices as $choice) {
       if (!property_exists($choice, 'message')) {
@@ -326,6 +333,10 @@ class Conversation {
 
     if (is_string($semaphore) && mb_strpos($answer, $semaphore) === false && $depth > 0) {
       $answer .= $this->ask(false, $semaphore, $depth - 1);
+    }
+
+    if ($this->session->echo) {
+      print "<<< $answer\n";
     }
 
     return $answer;
@@ -395,3 +406,75 @@ class Request {
   }
 }
 
+class PromptTemplateFile {
+  var $path;
+  var $templates;
+
+  function __construct($path) {
+    $this->path = $path;
+    $this->templates = array();
+    $this->load();
+  }
+
+  function load() {
+    $currentTemplate = null;
+    $ps = 0;
+    $f = fopen($this->path, 'r');
+    while (($line = fgets($f)) !== false) {
+      $line = trim($line);
+      switch($ps) {
+        case 0:
+          if (preg_match('/^ *begin +([a-zA-Z0-9_]+) *$/', $line, $matches)) {
+            $currentTemplate = new PromptTemplate($matches[1]);
+            $this->templates[$currentTemplate->name] = $currentTemplate;
+            $ps = 1;
+          } elseif (mb_strlen($line) > 0) {
+            throw new Exception("Unexpected line in prompt file: $line");
+          }
+          break;
+        case 1:
+          if (preg_match("/^ *end +$currentTemplate->name *$/", $line)) {
+            $ps = 0;
+          } elseif (mb_strlen($line) > 0) {
+            $currentTemplate->appendTemplate($line);
+          }
+          break;
+      }
+    }
+    fclose($f);
+
+    if ($ps == 1) {
+      throw new \Exception("Incomplete template: $currentTemplate->name");
+    }
+  }
+
+  function format($name, $p1 = false, $p2 = false, $p3 = false, $p4 = false, $p5 = false, $p6 = false, $p7 = false, $p8 = false, $p9 = false, $p10 = false) {
+    if (isset($this->templates[$name])) {
+      return sprintf($this->templates[$name]->format($p1, $p2, $p3, $p4, $p5, $p6, $p7, $p8, $p9, $p10));
+    } else {
+      throw new Exception("Unrecognized template: $name");
+    }
+  }
+}
+
+class PromptTemplate {
+  var $name;
+  var $template;
+
+  function __construct($name) {
+    $this->name = $name;
+    $this->template = false;
+  }
+
+  function appendTemplate($template) {
+    if ($this->template === false) {
+      $this->template = $template;
+    } else {
+      $this->template .= "\n" . $template;
+    }
+  }
+
+  function format($p1 = false, $p2 = false, $p3 = false, $p4 = false, $p5 = false, $p6 = false, $p7 = false, $p8 = false, $p9 = false, $p10 = false) {
+    return sprintf($this->template, $p1, $p2, $p3, $p4, $p5, $p6, $p7, $p8, $p9, $p10);
+  }
+}
