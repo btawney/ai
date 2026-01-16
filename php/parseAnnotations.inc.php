@@ -20,6 +20,25 @@ class Parsed {
   }
 }
 
+function parseAnnotations($raw, $semaphore) {
+  $result = array();
+
+  $parts = explode("\n", $raw);
+  foreach ($parts as $part) {
+    $part = trim($part);
+    if (strlen($part) == 0) {
+      continue;
+    } elseif ($part == $semaphore) {
+      break;
+    }
+    foreach (parseAnnotation($part) as $parsed) {
+      $result[] = $parsed;
+    }
+  }
+
+  return $result;
+}
+
 function parseAnnotation($raw) {
   global $zhpat;
   global $enpat;
@@ -45,7 +64,7 @@ function parseAnnotation($raw) {
 
   // Perfunctory type (typically on a chapter title)
   if (preg_match("/^$tpat$/", $raw)) {
-    $result[] = new Parsed(false, false, 'FAILURE', false, $raw);
+    $result[] = new Parsed(false, false, 'FAILURE', 'A', $raw);
     return $result;
   }
 
@@ -119,7 +138,7 @@ function parseAnnotation($raw) {
     $type1 = trim($matches[3]);    
 
   } else {
-    $result[] = new Parsed(false, false, 'FAILURE', false, $raw);
+    $result[] = new Parsed(false, false, 'FAILURE', 'B', $raw);
     return $result;
   }
 
