@@ -18,6 +18,7 @@ class Session {
   var $errorListeners;
   var $requestListeners;
   var $responseListeners;
+  var $limitExceededListeners;
 
   // Usage and pricing
   static $logPath = 'deepseek.log';
@@ -34,6 +35,10 @@ class Session {
 
   var $balanceURL;
 
+  // Maximum runtime, minimum balance
+  var $endTime;
+  var $minimumBalance;
+
   // Debugging
   var $echo;
 
@@ -49,6 +54,7 @@ class Session {
     $this->errorListeners = array();
     $this->requestListeners = array();
     $this->responseListeners = array();
+    $this->limitExceededListeners = array();
 
     // Pricing per 1M tokens
     $this->hitPrice = 0.028;
@@ -59,6 +65,10 @@ class Session {
     $this->out = 0;
     $this->balance = false;
     $this->balanceURL = 'https://api.deepseek.com/user/balance';
+
+    // Maximum runtime, minimum balance
+    $this->endTime = time() + 604800;
+    $this->minimumBalance = 1;
 
     // Debugging
     $this->echo = false;
@@ -133,6 +143,11 @@ class Session {
     return $this;
   }
 
+  function runTime($v) {
+    $this->endTime = time() + $v;
+    return $this;
+  }
+
   function echo($v = true) {
     $this->echo = $v;
     return $this;
@@ -150,6 +165,11 @@ class Session {
 
   function onResponse($f) {
     $this->responseListeners[] = $f;
+    return $this;
+  }
+
+  function onLimitExceeded($f) {
+    $this->limitExceededListeners[] = $f;
     return $this;
   }
 
@@ -181,6 +201,30 @@ class Session {
         error_log('Error raising response: ' . $e->getMessage());
       }
     }
+  }
+
+  function raiseLimitExceded($limit) {
+    foreach ($this->limitExceededListeners as $f) {
+      try {
+        $f($limit);
+      } catch (Exception $e) {
+        error_log('Error raising limit exceeded: ' . $e->getMessage());
+      }
+    }
+  }
+
+  function checkLimits() {
+    if ($this->balance() <= $this->minimumBalance) {
+      $this->raiseLimitExceded('BALANCE');
+      return false;
+    }
+
+    if (time() >= $this->endTime) {
+      $this->raiseLimitExceded('RUNTIME');
+      return false;
+    }
+
+    return true;
   }
 
   function updateUsage($hit, $miss, $out) {
@@ -343,6 +387,10 @@ class Conversation {
   }
 
   function submit() {
+    if ($this->session->checkLimits() === false) {
+      return false;
+    }
+
     $request = new Request($this);
     $this->session->raiseRequest($request);
 

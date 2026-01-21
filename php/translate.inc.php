@@ -11,8 +11,6 @@ class TextTranslation {
   var $properNouns;
   var $title;
   var $summary;
-  var $minimumBalance;
-  var $endTime;
 
   // Prompt templates
   var $translationIntroduction;
@@ -31,8 +29,6 @@ class TextTranslation {
     $this->properNouns = array();
     $this->title = null;
     $this->summary = null;
-    $this->minimumBalance = 0;
-    $this->endTime = 0;
 
     $templates = new \Deepseek\PromptTemplateFile('./translate.prompts');
     $this->translationIntroduction = $templates->templates['translationIntroduction'];
@@ -48,7 +44,6 @@ class TextTranslation {
       $data = json_decode(file_get_contents($path));
 
       $this->textPath = $data->textPath;
-      $this->minimumBalance = $data->minimumBalance;
       $this->properNouns = $data->properNouns;
       $this->title = $data->title;
 
@@ -75,14 +70,7 @@ class TextTranslation {
     return $this;
   }
 
-  function minimumBalance($v) {
-    $this->minimumBalance = $v;
-    return $this;
-  }
-
-  function translate($session, $minimumBalance = 1, $runSeconds = 604800) {
-    $this->minimumBalance = $minimumBalance;
-    $this->endTime = time() + $runSeconds;
+  function translate($session) {
 
     $text = new Text($this->textPath);
 
@@ -108,14 +96,6 @@ class TextTranslation {
   function save() {
     if ($this->path !== false) {
       file_put_contents($this->path, json_encode($this, JSON_PRETTY_PRINT));
-    }
-
-    if ($session->balance() <= $this->minimumBalance) {
-      return false;
-    }
-
-    if (time() >= $this->endTime) {
-      return false;
     }
   }
 }
@@ -238,11 +218,11 @@ class ParagraphTranslation {
         $textTranslation->summary = $convo->ask($textTranslation->resummarizePriorFascicles->format());
       }
 
-      $continue = $textTranslation->save();
-
-      if (!$continue) {
+      if ($session->checkLimit() == false) {
         return false;
       }
+
+      $textTranslation->save();
     }
 
     return true;
