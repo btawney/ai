@@ -46,8 +46,13 @@ class Text {
 		}
 	}
 
+	function title($v) {
+		$this->title = $v;
+		return $this;
+	}
+
 	function save($path) {
-		file_put_contents(json_encode($this, JSON_PRETTY_PRINT));
+		file_put_contents($path, json_encode($this, JSON_PRETTY_PRINT));
 	}
 
 	function newFascicle($name) {
