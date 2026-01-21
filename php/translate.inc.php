@@ -7,11 +7,12 @@ require_once('parseAnnotations.inc.php');
 class TextTranslation {
   var $path;
   var $textPath;
-  var $minimumBalance;
   var $fascicleTranslations;
   var $properNouns;
   var $title;
   var $summary;
+  var $minimumBalance;
+  var $endTime;
 
   // Prompt templates
   var $translationIntroduction;
@@ -26,11 +27,12 @@ class TextTranslation {
   function __construct($path = false) {
     $this->path = $path;
     $this->textPath = null;
-    $this->minimumBalance = 5;
     $this->fascicleTranslations = null;
     $this->properNouns = array();
     $this->title = null;
     $this->summary = null;
+    $this->minimumBalance = 0;
+    $this->endTime = 0;
 
     $templates = new \Deepseek\PromptTemplateFile('./translate.prompts');
     $this->translationIntroduction = $templates->templates['translationIntroduction'];
@@ -78,7 +80,10 @@ class TextTranslation {
     return $this;
   }
 
-  function translate($session) {
+  function translate($session, $minimumBalance = 1, $runSeconds = 604800) {
+    $this->minimumBalance = $minimumBalance;
+    $this->endTime = time() + $runSeconds;
+
     $text = new Text($this->textPath);
 
     if ($this->fascicleTranslations == null) {
@@ -103,6 +108,14 @@ class TextTranslation {
   function save() {
     if ($this->path !== false) {
       file_put_contents($this->path, json_encode($this, JSON_PRETTY_PRINT));
+    }
+
+    if ($session->balance() <= $this->minimumBalance) {
+      return false;
+    }
+
+    if (time() >= $this->endTime) {
+      return false;
     }
   }
 }
