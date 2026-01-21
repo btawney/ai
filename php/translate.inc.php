@@ -102,7 +102,7 @@ class TextTranslation {
 
   function save() {
     if ($this->path !== false) {
-      file_put_contents(json_encode($this, JSON_PRETTY_PRINT));
+      file_put_contents($this->path, json_encode($this, JSON_PRETTY_PRINT));
     }
   }
 }
