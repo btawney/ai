@@ -1,0 +1,43 @@
+begin translationIntroduction
+  I will ask for help translating a paragraph from a work titled %s
+end translationIntroduction
+
+begin priorFascicleSummary
+  Here is a summary of the earlier fascicles in this work: %s
+end priorFascicleSummary
+
+begin thisFascicleSummary
+  Here is a summary of this fascicle up to this point: %s
+end thisFascicleSummary
+
+begin listProperNouns
+  Here is a list of proper nouns that may or may not be relevant to this passage: %s
+end listProperNouns
+
+begin translationInstruction
+  Please translate the text below from Classical Chinese to English.
+  When your translation is complete, write END_OF_TRANSLATION.
+  If you have comments to make, place them after the string END_OF_TRANSLATION.
+  If there is nothing translatable, please write END_OF_TRANSLATION,UNTRANSLATABLE.
+  Here is the text to translate: %s
+end translationInstruction
+
+begin properNounInstruction
+  Please provide a simple list of proper nouns occurring in the text,
+  with the original form in Chinese, the form that you used to render it in your translation,
+  and the type of entity referred to (such as "PERSON", "PLACE", "STATE", "TITLE").
+  For example, if the text contains the proper noun 司馬遷,
+  then include the following entry in the list:
+    司馬遷, Sima Qian, PERSON
+  At the end of the list print "END_OF_LIST", even if there were no proper nouns at all, and the list is empty.
+  If you have helpful observations to make, please place these after the string "END_OF_LIST".
+end properNounInstruction
+
+begin resummarizeFascicle
+  Please resummarize the contents of this fascicle taking into account the newly translated paragraph.
+end resummarizeFascicle
+
+begin resummarizePriorFascicles
+  Please resummarize the text so far taking into account this newly completed fascicle.
+end resummarizePriorFascicles
+
