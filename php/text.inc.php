@@ -101,6 +101,7 @@ class Fascicle {
 	function newParagraph($name, $text) {
 		$p = new Paragraph();
 		$p->name = $name;
+		$this->paragraphs[] = $p;
 		$p->text = $text;
 	}
 
