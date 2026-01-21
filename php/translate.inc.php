@@ -1,11 +1,12 @@
 <?php // translate.inc.php
 
-require_once('/root/ai/php/deepseek.inc.php');
-require_once('/root/ai/php/parseAnnotations.inc.php');
-require_once('db.inc.php');
+require_once('text.inc.php');
+require_once('deepseek.inc.php');
+require_once('parseAnnotations.inc.php');
 
-class WorkTranslation {
-  var $workId;
+class TextTranslation {
+  var $path;
+  var $textPath;
   var $minimumBalance;
   var $fascicleTranslations;
   var $properNouns;
@@ -22,8 +23,9 @@ class WorkTranslation {
   var $resummarizeFascicle;
   var $resummarizePriorFascicles;
 
-  function __construct($workId) {
-    $this->workId = $workId;
+  function __construct($path = false) {
+    $this->path = $path;
+    $this->textPath = null;
     $this->minimumBalance = 5;
     $this->fascicleTranslations = null;
     $this->properNouns = array();
@@ -40,9 +42,10 @@ class WorkTranslation {
     $this->resummarizeFascicle = $templates->templates['resummarizeFascicle'];
     $this->resummarizePriorFascicles = $templates->templates['resummarizePriorFascicles'];
 
-    if (file_exists("./$workId.json")) {
-      $data = json_decode(file_get_contents("./$workId.json"));
+    if ($path !== false && file_exists($path)) {
+      $data = json_decode(file_get_contents($path));
 
+      $this->textPath = $data->textPath;
       $this->minimumBalance = $data->minimumBalance;
       $this->properNouns = $data->properNouns;
       $this->title = $data->title;
@@ -65,26 +68,29 @@ class WorkTranslation {
     }
   }
 
+  function textPath($v) {
+    $this->textPath = $v;
+    return $this;
+  }
+
   function minimumBalance($v) {
     $this->minimumBalance = $v;
     return $this;
   }
 
   function translate($session) {
-    if ($this->title === null) {
-      $this->title = db_query_one_value('SELECT name FROM work WHERE workId = %d', $this->workId);
-    }
+    $text = new Text($this->textPath);
 
     if ($this->fascicleTranslations == null) {
       $this->fascicleTranslations = array();
-      $fascicleIds = db_query_one_column('SELECT fascicleId FROM fascicle WHERE workId = %d ORDER BY fascicleOrder', $this->workId);
-      foreach ($fascicleIds as $fascicleId) {
-        $this->fascicleTranslations[] = new FascicleTranslation($fascicleId);
+
+      foreach ($text->fascicles as $fascicle) {
+        $this->fascicleTranslations[] = new FascicleTranslation($fascicle->name);
       }
     }
 
     foreach ($this->fascicleTranslations as $fascicleTranslation) {
-      $continue = $fascicleTranslation->translate($this, $session);
+      $continue = $fascicleTranslation->translate($this, $session, $text);
 
       if (!$continue) {
         return false;
@@ -95,33 +101,28 @@ class WorkTranslation {
   }
 
   function save() {
-    file_put_contents("./$this->workId.json", json_encode($this));
-
-    if (file_exists("/$this->workId.stop")) {
-      return false;
-    } else {
-      return true;
+    if ($this->path !== false) {
+      file_put_contents(json_encode($this, JSON_PRETTY_PRINT));
     }
   }
 }
 
 class FascicleTranslation {
-  var $fascicleId;
+  var $fascicleName;
   var $paragraphTranslations;
   var $summary;
 
-  function __construct($fascicleId) {
-    $this->fascicleId = $fascicleId;
+  function __construct($fascicleName) {
+    $this->fascicleName = $fascicleName;
     $this->paragraphTranslations = null;
     $this->summary = null;
   }
 
-  function translate($workTranslation, $session) {
+  function translate($textTranslation, $session, $text) {
     if ($this->paragraphTranslations == null) {
       $this->paragraphTranslations = array();
-      $paragraphIds = db_query_one_column('SELECT paragraphId FROM paragraph WHERE fascicleId = %d ORDER BY paragraphNumber', $this->fascicleId);
-      foreach ($paragraphIds as $paragraphId) {
-        $this->paragraphTranslations[] = new ParagraphTranslation($paragraphId);
+      foreach ($text->getFascicle($this->fascicleName)->paragraphs as $paragraph) {
+        $this->paragraphTranslations[] = new ParagraphTranslation($paragraph->name);
       }
     }
 
@@ -129,7 +130,7 @@ class FascicleTranslation {
     for ($i = 0; $i < $count; ++$i) {
       $paragraphTranslation = $this->paragraphTranslations[$i];
       $isLast = ($i + 1 == $count);
-      $continue = $paragraphTranslation->translate($workTranslation, $this, $session, $isLast);
+      $continue = $paragraphTranslation->translate($textTranslation, $this, $session, $isLast, $text);
 
       if (!$continue) {
         return false;
@@ -141,13 +142,13 @@ class FascicleTranslation {
 }
 
 class ParagraphTranslation {
-  var $paragraphId;
+  var $paragraphName;
   var $chinese;
   var $response;
   var $translation;
 
-  function __construct($paragraphId) {
-    $this->paragraphId = $paragraphId;
+  function __construct($paragraphName) {
+    $this->paragraphName = $paragraphName;
     $this->chinese = null;
     $this->responses = null;
     $this->translation = null;
@@ -163,23 +164,23 @@ class ParagraphTranslation {
     return $this;
   }
 
-  function translate ($workTranslation, $fascicleTranslation, $session, $isLast) {
+  function translate ($textTranslation, $fascicleTranslation, $session, $isLast, $text) {
     if ($this->chinese === null) {
-      $this->chinese = db_query_one_value('SELECT chinese FROM paragraph WHERE paragraphId = %d', $this->paragraphId);
+      $this->chinese = $text->getFascicle($fascicleTranslation->fascicleName)->getParagraph($this->paragraphName)->text;
     }
 
     if ($this->translation === null) {
       $convo = $session->conversation();
-      $convo->addUserMessage($workTranslation->translationIntroduction->format($workTranslation->title));
-      if ($workTranslation->summary != null) {
-        $convo->addUserMessage($workTranslation->priorFascicleSummary->format($workTranslation->summary));
+      $convo->addUserMessage($textTranslation->translationIntroduction->format($textTranslation->title));
+      if ($textTranslation->summary != null) {
+        $convo->addUserMessage($textTranslation->priorFascicleSummary->format($textTranslation->summary));
       }
       if ($fascicleTranslation->summary != null) {
-        $convo->addUserMessage($workTranslation->thisFascicleSummary->format($fascicleTranslation->summary));
+        $convo->addUserMessage($textTranslation->thisFascicleSummary->format($fascicleTranslation->summary));
       }
 
       $properNouns = false;
-      foreach ($workTranslation->properNouns as $source => $list) {
+      foreach ($textTranslation->properNouns as $source => $list) {
         if (mb_strpos($this->chinese, $source) !== false) {
           foreach ($list as $properNoun) {
             if ($properNouns === false) {
@@ -192,18 +193,18 @@ class ParagraphTranslation {
       }
 
       if ($properNouns !== false) {
-        $convo->addUserMessage($workTranslation->listProperNouns->format($properNouns));
+        $convo->addUserMessage($textTranslation->listProperNouns->format($properNouns));
       }
 
-      $this->translation = $convo->ask($workTranslation->translationInstruction->format($this->chinese), 'END_OF_TRANSLATION');
-      $raw = $convo->ask($workTranslation->properNounInstruction->format(), 'END_OF_LIST');
+      $this->translation = $convo->ask($textTranslation->translationInstruction->format($this->chinese), 'END_OF_TRANSLATION');
+      $raw = $convo->ask($textTranslation->properNounInstruction->format(), 'END_OF_LIST');
 
       $list = parseAnnotations($raw, 'END_OF_LIST');
 
       foreach ($list as $properNoun) {
-        if (isset($workTranslation->properNouns[$properNoun->source])) {
+        if (isset($textTranslation->properNouns[$properNoun->source])) {
           $foundIt = false;
-          foreach ($workTranslation->properNouns[$properNoun->source] as $existing) {
+          foreach ($textTranslation->properNouns[$properNoun->source] as $existing) {
             if ($existing->target == $properNoun->target) {
               $foundIt = true;
             }
@@ -211,20 +212,20 @@ class ParagraphTranslation {
 
           if ($foundIt) {
           } else {
-            $workTranslation->properNouns[$properNoun->source][] = $properNoun;
+            $textTranslation->properNouns[$properNoun->source][] = $properNoun;
           }
         } else {
-          $workTranslation->properNouns[$properNoun->source] = array($properNoun);
+          $textTranslation->properNouns[$properNoun->source] = array($properNoun);
         }
       }
 
-      $fascicleTranslation->summary = $convo->ask($workTranslation->resummarizeFascicle->format());
+      $fascicleTranslation->summary = $convo->ask($textTranslation->resummarizeFascicle->format());
 
       if ($isLast) {
-        $workTranslation->summary = $convo->ask($workTranslation->resummarizePriorFascicles->format());
+        $textTranslation->summary = $convo->ask($textTranslation->resummarizePriorFascicles->format());
       }
 
-      $continue = $workTranslation->save();
+      $continue = $textTranslation->save();
 
       if (!$continue) {
         return false;
