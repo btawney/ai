@@ -93,7 +93,7 @@ class Fascicle {
 			$this->name = $data->name;
 
 			foreach ($data->paragraphs as $paragraph) {
-				$this->paragraphs[] = new Paragraph($data->paragraphs);
+				$this->paragraphs[] = new Paragraph($paragraph);
 			}
 		}
 	}
