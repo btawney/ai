@@ -143,6 +143,11 @@ class Session {
     return $this;
   }
 
+  function minimumBalance($v) {
+    $this->minimumBalance = $v;
+    return $this;
+  }
+
   function runTime($v) {
     $this->endTime = time() + $v;
     return $this;
