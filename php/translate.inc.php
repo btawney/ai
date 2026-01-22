@@ -73,9 +73,13 @@ class TextTranslation {
     return $this;
   }
 
-  function translate($session) {
+  function translate($session, $stopAtEndOfFascicle = 'NOSUCH') {
 
     $text = new Text($this->textPath);
+
+    if ($this->title == null) {
+      $this->title = $text->title;
+    }
 
     if ($this->fascicleTranslations == null) {
       $this->fascicleTranslations = array();
@@ -87,6 +91,10 @@ class TextTranslation {
 
     foreach ($this->fascicleTranslations as $fascicleTranslation) {
       $continue = $fascicleTranslation->translate($this, $session, $text);
+
+      if ($fascicleTranslation->fascicleName == $stopAtEndOfFascicle) {
+        $continue = false;
+      }
 
       if (!$continue) {
         return false;
