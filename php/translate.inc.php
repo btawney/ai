@@ -44,7 +44,10 @@ class TextTranslation {
       $data = json_decode(file_get_contents($path));
 
       $this->textPath = $data->textPath;
-      $this->properNouns = $data->properNouns;
+      $this->properNouns = array();
+      foreach (get_object_vars($data->properNouns) as $source => $properNoun) {
+        $this->properNouns[$source] = $properNoun;
+      }
       $this->title = $data->title;
 
       if ($data->fascicleTranslations != null) {
