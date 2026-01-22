@@ -392,10 +392,6 @@ class Conversation {
   }
 
   function submit() {
-    if ($this->session->checkLimits() === false) {
-      return false;
-    }
-
     $request = new Request($this);
     $this->session->raiseRequest($request);
 

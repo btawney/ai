@@ -139,6 +139,7 @@ class ParagraphTranslation {
   var $chinese;
   var $response;
   var $translation;
+  var $properNouns;
 
   function __construct($paragraphName) {
     $this->paragraphName = $paragraphName;
@@ -190,9 +191,9 @@ class ParagraphTranslation {
       }
 
       $this->translation = $convo->ask($textTranslation->translationInstruction->format($this->chinese), 'END_OF_TRANSLATION');
-      $raw = $convo->ask($textTranslation->properNounInstruction->format(), 'END_OF_LIST');
+      $this->properNouns = $convo->ask($textTranslation->properNounInstruction->format(), 'END_OF_LIST');
 
-      $list = parseAnnotations($raw, 'END_OF_LIST');
+      $list = parseAnnotations($this->properNouns, 'END_OF_LIST');
 
       foreach ($list as $properNoun) {
         if (isset($textTranslation->properNouns[$properNoun->source])) {
@@ -218,7 +219,7 @@ class ParagraphTranslation {
         $textTranslation->summary = $convo->ask($textTranslation->resummarizePriorFascicles->format());
       }
 
-      if ($session->checkLimit() == false) {
+      if ($session->checkLimits() == false) {
         return false;
       }
 
