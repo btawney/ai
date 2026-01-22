@@ -50,11 +50,11 @@ class TextTranslation {
       if ($data->fascicleTranslations != null) {
         $this->fascicleTranslations = array();
         foreach ($data->fascicleTranslations as $fascicleTranslationData) {
-          $newFascicleTranslation = new FascicleTranslation($fascicleTranslationData->fascicleId);
+          $newFascicleTranslation = new FascicleTranslation($fascicleTranslationData->fascicleName);
           if ($fascicleTranslationData->paragraphTranslations != null) {
             $newFascicleTranslation->paragraphTranslations = array();
             foreach ($fascicleTranslationData->paragraphTranslations as $paragraphTranslation) {
-              $newFascicleTranslation->paragraphTranslations[] = (new ParagraphTranslation($paragraphTranslation->paragraphId))
+              $newFascicleTranslation->paragraphTranslations[] = (new ParagraphTranslation($paragraphTranslation->paragraphName))
                 ->chinese($paragraphTranslation->chinese)
                 ->translation($paragraphTranslation->translation);
             }
