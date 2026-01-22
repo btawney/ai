@@ -137,14 +137,12 @@ class FascicleTranslation {
 class ParagraphTranslation {
   var $paragraphName;
   var $chinese;
-  var $response;
   var $translation;
   var $properNouns;
 
   function __construct($paragraphName) {
     $this->paragraphName = $paragraphName;
     $this->chinese = null;
-    $this->responses = null;
     $this->translation = null;
   }
 
