@@ -74,7 +74,6 @@ class TextTranslation {
   }
 
   function translate($session, $stopAtEndOfFascicle = 'NOSUCH') {
-
     $text = new Text($this->textPath);
 
     if ($this->title == null) {
