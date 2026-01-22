@@ -59,7 +59,8 @@ class TextTranslation {
             foreach ($fascicleTranslationData->paragraphTranslations as $paragraphTranslation) {
               $newFascicleTranslation->paragraphTranslations[] = (new ParagraphTranslation($paragraphTranslation->paragraphName))
                 ->chinese($paragraphTranslation->chinese)
-                ->translation($paragraphTranslation->translation);
+                ->translation($paragraphTranslation->translation)
+                ->properNouns($paragraphTranslation->properNouns);
             }
           }
           $this->fascicleTranslations[] = $newFascicleTranslation;
@@ -163,6 +164,11 @@ class ParagraphTranslation {
 
   function translation($v) {
     $this->translation = $v;
+    return $this;
+  }
+
+  function properNouns($v) {
+    $this->properNouns = $v;
     return $this;
   }
 
