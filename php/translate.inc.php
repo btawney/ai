@@ -49,18 +49,20 @@ class TextTranslation {
         $this->properNouns[$source] = $properNoun;
       }
       $this->title = $data->title;
+      $this->summary = $data->summary;
 
       if ($data->fascicleTranslations != null) {
         $this->fascicleTranslations = array();
         foreach ($data->fascicleTranslations as $fascicleTranslationData) {
-          $newFascicleTranslation = new FascicleTranslation($fascicleTranslationData->fascicleName);
+          $newFascicleTranslation = (new FascicleTranslation($fascicleTranslationData->fascicleName))
+            ->summary($fascicleTranslationData->summary);
           if ($fascicleTranslationData->paragraphTranslations != null) {
             $newFascicleTranslation->paragraphTranslations = array();
-            foreach ($fascicleTranslationData->paragraphTranslations as $paragraphTranslation) {
-              $newFascicleTranslation->paragraphTranslations[] = (new ParagraphTranslation($paragraphTranslation->paragraphName))
-                ->chinese($paragraphTranslation->chinese)
-                ->translation($paragraphTranslation->translation)
-                ->properNouns($paragraphTranslation->properNouns);
+            foreach ($fascicleTranslationData->paragraphTranslations as $paragraphTranslationData) {
+              $newFascicleTranslation->paragraphTranslations[] = (new ParagraphTranslation($paragraphTranslationData->paragraphName))
+                ->chinese($paragraphTranslationData->chinese)
+                ->translation($paragraphTranslationData->translation)
+                ->properNouns($paragraphTranslationData->properNouns);
             }
           }
           $this->fascicleTranslations[] = $newFascicleTranslation;
@@ -120,6 +122,11 @@ class FascicleTranslation {
     $this->fascicleName = $fascicleName;
     $this->paragraphTranslations = null;
     $this->summary = null;
+  }
+
+  function summary($v) {
+    $this->summary = $v;
+    return $this;
   }
 
   function translate($textTranslation, $session, $text) {
