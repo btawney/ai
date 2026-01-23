@@ -19,6 +19,7 @@ class Session {
   var $requestListeners;
   var $responseListeners;
   var $limitExceededListeners;
+  var $customEventListeners;
 
   // Usage and pricing
   static $logPath = 'deepseek.log';
@@ -55,6 +56,7 @@ class Session {
     $this->requestListeners = array();
     $this->responseListeners = array();
     $this->limitExceededListeners = array();
+    $this->customEventListeners = array();
 
     // Pricing per 1M tokens
     $this->hitPrice = 0.028;
@@ -214,6 +216,28 @@ class Session {
         $f($limit);
       } catch (Exception $e) {
         error_log('Error raising limit exceeded: ' . $e->getMessage());
+      }
+    }
+  }
+
+  function onCustomEvent($eventName, $f) {
+    if (empty($this->customEventListeners[$eventName])) {
+      $this->customEventListeners[$eventName] = array($f);
+    } else {
+      $this->customEventListeners[$eventName][] = $f;
+    }
+  }
+
+  function raiseCustomEvent($eventName, $message) {
+    if (empty($this->customEventListeners[$eventName])) {
+      return;
+    }
+
+    foreach ($this->customEventListeners[$eventName] as $f) {
+      try {
+        $f($message);
+      } catch (Exception $e) {
+        error_log('Error raising custom event: ' . $e->getMessage());
       }
     }
   }

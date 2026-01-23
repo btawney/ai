@@ -62,7 +62,8 @@ class TextTranslation {
               $newFascicleTranslation->paragraphTranslations[] = (new ParagraphTranslation($paragraphTranslationData->paragraphName))
                 ->chinese($paragraphTranslationData->chinese)
                 ->translation($paragraphTranslationData->translation)
-                ->properNouns($paragraphTranslationData->properNouns);
+                ->properNouns($paragraphTranslationData->properNouns)
+                ->fascicleName($fascicleTranslationData->fascicleName);
             }
           }
           $this->fascicleTranslations[] = $newFascicleTranslation;
@@ -158,10 +159,18 @@ class ParagraphTranslation {
   var $translation;
   var $properNouns;
 
+  // Informational only
+  var $fascicleName;
+
   function __construct($paragraphName) {
     $this->paragraphName = $paragraphName;
     $this->chinese = null;
     $this->translation = null;
+  }
+
+  function fascicleName($v) {
+    $this->fascicleName = $v;
+    return $this;
   }
 
   function chinese($v) {
@@ -185,6 +194,8 @@ class ParagraphTranslation {
     }
 
     if ($this->translation === null) {
+      $session->raiseCustomEvent('paragraphStart', $this);
+
       $convo = $session->conversation();
       $convo->addUserMessage($textTranslation->translationIntroduction->format($textTranslation->title));
       if ($textTranslation->summary != null) {
