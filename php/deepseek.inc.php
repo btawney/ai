@@ -226,6 +226,7 @@ class Session {
     } else {
       $this->customEventListeners[$eventName][] = $f;
     }
+    return $this;
   }
 
   function raiseCustomEvent($eventName, $message) {
