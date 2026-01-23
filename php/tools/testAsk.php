@@ -8,7 +8,8 @@ foreach ($argv as $arg) {
 	$question .= $arg . ' ';
 }
 
-$session = new \Deepseek\Session()->echo()
+$session = (new \Deepseek\Session())
+  ->echo()
   ->onError(function($e) {
   	print "ERROR: $e\n";
   })
