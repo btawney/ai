@@ -19,7 +19,8 @@ $session = (new \Deepseek\Session())
 
 $startTime = time();
 
-$session->ask($question);
+$convo = $session->conversation();
+$convo->ask($question);
 
 print "Elapsed Seconds: " . (time() - $startTime) . "\n";
 print "Usage:           " . $session->usage() . "\n";
