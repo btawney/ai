@@ -262,24 +262,23 @@ class Session {
     $this->out += $out;
   }
 
+  function usage() {
+    return
+        $this->hit  * $this->hitPrice  / 1000000.0
+      + $this->miss * $this->missPrice / 1000000.0
+      + $this->out  * $this->outPrice  / 1000000.0
+      ;
+  }
+
   function balance() {
     if ($this->balance === false) {
       $balance = $this->refreshBalance();
       // Back out any usage to get the session start balance
-      $this->balance
-        = $balance
-        - $this->hit  * $this->hitPrice  / 1000000.0
-        - $this->miss * $this->missPrice / 1000000.0
-        - $this->out  * $this->outPrice  / 1000000.0
-        ;
+      $this->balance = $balance - $this->usage();
     }
 
     if ($this->balance !== false) {
-      return $this->balance
-        + $this->hit  * $this->hitPrice  / 1000000.0
-        + $this->miss * $this->missPrice / 1000000.0
-        + $this->out  * $this->outPrice  / 1000000.0
-        ;
+      return $this->balance + $this->usage();
     } else {
       return 0;
     }
