@@ -4,8 +4,13 @@ require_once('../deepseek.inc.php');
 
 $question = '';
 
+$first = true;
 foreach ($argv as $arg) {
-	$question .= $arg . ' ';
+	if ($first) {
+		$first = false;
+	} else {
+		$question .= $arg . ' ';
+	}
 }
 
 $session = (new \Deepseek\Session())
