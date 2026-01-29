@@ -2,137 +2,92 @@
 
 class Text {
 	var $title;
+	var $name;
 	var $fascicles;
-	var $version;
+	var $fascicleIndex;
 
-	function __construct($path = false) {
-		$this->version = array(0, 0, 0);
-		$this->title = false;
+	function __construct($path) {
+		$this->name = basename($path, '.txt');
 		$this->fascicles = array();
+		$this->fascicleIndex = array();
+		$this->title = false;
 
-		if ($path !== false) {
-			if (!file_exists($path)) {
-				throw new Exception("Unable to find source file: $path");
-			}
+		$f = fopen($path, 'r');
+		$currentFascicle = false;
+		$currentFascicleName = false;
+		$lastParagraph = '';
 
-			$data = json_decode(file_get_contents($path));
+		$lineNumber = 0;
 
-			if (!property_exists($data, 'version')
-				|| !is_array($data->version)
-				|| count($data->version) != 3
-				|| !property_exists($data, 'title')
-				|| !is_string($data->title)
-				|| !property_exists($data, 'fascicles')
-				|| !is_array($data->fascicles)
-				) {
-				throw new Exception("Improperly formatted source file: $path");
-			}
+		while (($line = fgets($f)) !== false) {
+			++$lineNumber;
 
-			if ($data->version[0] != $this->version[0]) {
-				// No attempt to maintain compatibility across major version numbers
-				throw new Exception("Incompatible source file: $path");
-			}
+			if (preg_match('/^([0-9]+[a-d]*)[.]([0-9]{4})[|](.*)$/', $line, $matches)) {
+				$fascicleName = $matches[1];
+				$paragraphNumber = $matches[2];
+				$content = trim($matches[3]);
 
-			if ($data->version[1] > $this->version[1]) {
-				// Source file is a newer version, we don't know what might be different
-				throw new Exception("Source file is a newer version: $path");
-			}
+				if ($fascicleName != $currentFascicleName) {
+					throw new Exception("Paragraph in wrong fascicle: $this->name $fascicleName.$paragraphNumber on line $lineNumber");
+				}
 
-			$this->title = $data->title;
+				if (isset($currentFascicle->paragraphs[$paragraphNumber])) {
+					throw new Exception("Duplicate paragraph number: $this->name $fascicleName.$paragraphNumber on line $lineNumber");
+				}
 
-			foreach ($data->fascicles as $fascicleData) {
-				$this->fascicles[] = new Fascicle($fascicleData);
-			}
-		}
-	}
+				$currentFascicle->paragraphs[$paragraphNumber] = new Paragraph($paragraphNumber, $content);
+				$currentFascicle->paragraphIndex[] = $paragraphNumber;
 
-	function title($v) {
-		$this->title = $v;
-		return $this;
-	}
+				$lastParagraph = $paragraphNumber;
+			} elseif (preg_match('/^fascicle:([0-9]+[a-d]*)[ \t\r\n]*$/', $line, $matches)) {
+				$newFascicleName = trim($matches[1]);
 
-	function save($path) {
-		file_put_contents($path, json_encode($this, JSON_PRETTY_PRINT));
-	}
+				if (isset($this->fascicles[$newFascicleName])) {
+					throw new Exception("Duplicate fascicle name: $this->name $newFascicleName on line $lineNumber");
+				}
 
-	function newFascicle($name) {
-		$f = new Fascicle();
-		$f->name = $name;
-		$this->fascicles[] = $f;
-		return $f;
-	}
+				$currentFascicle = new Fascicle($newFascicleName, $lineNumber);
 
-	function getFascicle($name) {
-		foreach ($this->fascicles as $fascicle) {
-			if ($fascicle->name == $name) {
-				return $fascicle;
+				$this->fascicles[$newFascicleName] = $currentFascicle;
+				$this->fascicleIndex[] = $newFascicleName;
+
+				$currentFascicleName = $newFascicleName;
+				$lastParagraph = '';
+			} elseif (preg_match('/^title:(.*)$/', $line, $matches)) {
+				$this->title = trim($matches[1]);
+			} elseif (preg_match('/^ *#/', $line)) {
+				// Ignore comments
+			} else {
+				throw new Exception("Unrecognized line in $this->name on line $lineNumber: $line");
 			}
 		}
-		return null;
+		fclose($f);
 	}
 }
 
 class Fascicle {
 	var $name;
 	var $paragraphs;
+	var $paragraphIndex;
 
-	function __construct($data = false) {
-		$this->name = false;
+	// Informational
+	var $startsOnLineNumber;
+	
+	function __construct($name, $startsOnLineNumber) {
+		$this->name = $name;
 		$this->paragraphs = array();
-		$this->id = false;
+		$this->paragraphIndex = array();
 
-		if ($data !== false) {
-			if (!property_exists($data, 'name')
-				|| !is_string($data->name)
-				|| !property_exists($data, 'paragraphs')
-				|| !is_array($data->paragraphs)
-				) {
-				throw new Exception("Improperly formatted fascicle");
-			}
-
-			$this->name = $data->name;
-
-			foreach ($data->paragraphs as $paragraph) {
-				$this->paragraphs[] = new Paragraph($paragraph);
-			}
-		}
-	}
-
-	function newParagraph($name, $text) {
-		$p = new Paragraph();
-		$p->name = $name;
-		$this->paragraphs[] = $p;
-		$p->text = $text;
-	}
-
-	function getParagraph($name) {
-		foreach ($this->paragraphs as $paragraph) {
-			if ($paragraph->name == $name) {
-				return $paragraph;
-			}
-		}
-		return null;
+		$this->startsOnLineNumber = $startsOnLineNumber;
 	}
 }
 
 class Paragraph {
-	var $name;
-	var $text;
+	var $number;
+	var $content;
 
-	function __construct($data = false) {
-		$this->name = false;
-		$this->text = false;
-
-		if ($data !== false) {
-			if (!property_exists($data, 'name')
-				|| !is_string($data->name)
-				|| !property_exists($data, 'text')
-				|| !is_string($data->text)) {
-				throw new Exception("Impropertly formatted paragraph");
-			}
-
-			$this->name = $data->name;
-			$this->text = $data->text;
-		}
+	function __construct($number, $content) {
+		$this->number = $number;
+		$this->content = $content;
 	}
 }
