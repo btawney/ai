@@ -68,7 +68,7 @@ foreach ($argv as $arg) {
 				$workDirectory = $arg;
 				$ps = 1; // Expect argument
 			} else {
-				print "Expected an existing work directory\n";
+				print "Expected an existing work directory, got $arg\n";
 				exit();
 			}
 			break;
@@ -78,7 +78,7 @@ foreach ($argv as $arg) {
 				$sourceFile = $arg;
 				$ps = 1; // Expect argument
 			} else {
-				print "Expected an existing source file\n";
+				print "Expected an existing source file, got $arg\n";
 				exit();
 			}
 			break;
