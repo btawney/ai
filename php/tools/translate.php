@@ -26,7 +26,7 @@ foreach ($argv as $arg) {
 			} elseif (preg_match('/^--?work-?dir$/i', $arg)) {
 				$ps = 5; // Expect work dir
 			} elseif ($sourceFile === false && file_exists($arg)) {
-				$ps = 6; // Expect source file
+				$sourceFile = $arg;
 			} else {
 				print "Unrecognized argument: $arg\n";
 				exit();
@@ -69,16 +69,6 @@ foreach ($argv as $arg) {
 				$ps = 1; // Expect argument
 			} else {
 				print "Expected an existing work directory, got $arg\n";
-				exit();
-			}
-			break;
-
-		case 6: // source file
-			if (file_exists($arg)) {
-				$sourceFile = $arg;
-				$ps = 1; // Expect argument
-			} else {
-				print "Expected an existing source file, got $arg\n";
 				exit();
 			}
 			break;
