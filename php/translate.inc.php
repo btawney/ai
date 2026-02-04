@@ -2,262 +2,298 @@
 
 require_once('text.inc.php');
 require_once('deepseek.inc.php');
-require_once('parseAnnotations.inc.php');
 
-class TextTranslation {
-  var $path;
-  var $textPath;
-  var $fascicleTranslations;
-  var $properNouns;
-  var $title;
-  var $summary;
-
-  // Prompt templates
-  var $translationIntroduction;
-  var $priorFascicleSummary;
-  var $thisFascicleSummary;
-  var $listProperNouns;
-  var $translationInstruction;
-  var $properNounInstruction;
-  var $resummarizeFascicle;
-  var $resummarizePriorFascicles;
-
-  function __construct($path = false) {
-    $this->path = $path;
-    $this->textPath = null;
-    $this->fascicleTranslations = null;
-    $this->properNouns = array();
-    $this->title = null;
-    $this->summary = null;
-
-    $templates = new \Deepseek\PromptTemplateFile('./translate.prompts');
-    $this->translationIntroduction = $templates->templates['translationIntroduction'];
-    $this->priorFascicleSummary = $templates->templates['priorFascicleSummary'];
-    $this->thisFascicleSummary = $templates->templates['thisFascicleSummary'];
-    $this->listProperNouns = $templates->templates['listProperNouns'];
-    $this->translationInstruction = $templates->templates['translationInstruction'];
-    $this->properNounInstruction = $templates->templates['properNounInstruction'];
-    $this->resummarizeFascicle = $templates->templates['resummarizeFascicle'];
-    $this->resummarizePriorFascicles = $templates->templates['resummarizePriorFascicles'];
-
-    if ($path !== false && file_exists($path)) {
-      $data = json_decode(file_get_contents($path));
-
-      $this->textPath = $data->textPath;
-      $this->properNouns = array();
-      foreach (get_object_vars($data->properNouns) as $source => $properNoun) {
-        $this->properNouns[$source] = $properNoun;
-      }
-      $this->title = $data->title;
-      $this->summary = $data->summary;
-
-      if ($data->fascicleTranslations != null) {
-        $this->fascicleTranslations = array();
-        foreach ($data->fascicleTranslations as $fascicleTranslationData) {
-          $newFascicleTranslation = (new FascicleTranslation($fascicleTranslationData->fascicleName))
-            ->summary($fascicleTranslationData->summary);
-          if ($fascicleTranslationData->paragraphTranslations != null) {
-            $newFascicleTranslation->paragraphTranslations = array();
-            foreach ($fascicleTranslationData->paragraphTranslations as $paragraphTranslationData) {
-              $newFascicleTranslation->paragraphTranslations[] = (new ParagraphTranslation($paragraphTranslationData->paragraphName))
-                ->chinese($paragraphTranslationData->chinese)
-                ->translation($paragraphTranslationData->translation)
-                ->properNouns($paragraphTranslationData->properNouns)
-                ->fascicleName($fascicleTranslationData->fascicleName);
-            }
-          }
-          $this->fascicleTranslations[] = $newFascicleTranslation;
-        }
-      }
-    }
-  }
-
-  function textPath($v) {
-    $this->textPath = $v;
-    return $this;
-  }
-
-  function translate($session, $stopAtEndOfFascicle = 'NOSUCH') {
-    $text = new Text($this->textPath);
-
-    if ($this->title == null) {
-      $this->title = $text->title;
-    }
-
-    if ($this->fascicleTranslations == null) {
-      $this->fascicleTranslations = array();
-
-      foreach ($text->fascicles as $fascicle) {
-        $this->fascicleTranslations[] = new FascicleTranslation($fascicle->name);
-      }
-    }
-
-    foreach ($this->fascicleTranslations as $fascicleTranslation) {
-      $continue = $fascicleTranslation->translate($this, $session, $text);
-
-      if ($fascicleTranslation->fascicleName == $stopAtEndOfFascicle) {
-        $continue = false;
-      }
-
-      if (!$continue) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  function save() {
-    if ($this->path !== false) {
-      file_put_contents($this->path, json_encode($this, JSON_PRETTY_PRINT));
-    }
-  }
+enum SubState {
+    case Uninitialized;
+    case ReadyToTranslate;
+    case DoneTranslating;
+    case PossiblyRecoverableError;
+    case UnrecoverableError;
+    case EndOfText;
 }
 
-class FascicleTranslation {
-  var $fascicleName;
-  var $paragraphTranslations;
-  var $summary;
+class TranslationState {
+    var $textPath;
+    var $workPath;
+    var $promptsPath;
+    var $status;
+    var $statusDetail;
+    var $fascicleName; // The fascicle just completed or false at start
+    var $paragraphNumber; // The paragraph just completed or false at start
+    var $textSummary; // Or false at start
+    var $fascicleSummary; // Or false at start
+    var $translation;
+    var $properNouns;
+    var $consecutiveErrorCount;
 
-  function __construct($fascicleName) {
-    $this->fascicleName = $fascicleName;
-    $this->paragraphTranslations = null;
-    $this->summary = null;
-  }
+    // Prompts
+    var $translationIntroduction;
+    var $priorFascicleSummary;
+    var $thisFascicleSummary;
+    var $translationInstruction;
+    var $properNounInstruction;
+    var $resummarizeFascicle;
+    var $resummarizePriorFascicles;
 
-  function summary($v) {
-    $this->summary = $v;
-    return $this;
-  }
+    // Non-data members
+    var $text;
 
-  function translate($textTranslation, $session, $text) {
-    if ($this->paragraphTranslations == null) {
-      $this->paragraphTranslations = array();
-      foreach ($text->getFascicle($this->fascicleName)->paragraphs as $paragraph) {
-        $this->paragraphTranslations[] = new ParagraphTranslation($paragraph->name);
-      }
+    // Don't construct directly, instead call TranslationState::initial() or TranslationState::fromWorkFile()
+    function __construct() {
+        $this->textPath = false;
+        $this->workPath = false;
+        $this->fascicleName = false;
+        $this->paragraphNumber = false;
+        $this->textSummary = false;
+        $this->fascicleSummary = false;
+        $this->translation = false;
+        $this->properNouns = false;
+        $this->status = SubState::Uninitialized;
+        $this->statusDetail = false;
+        $this->consecutiveErrorCount = 0;
+        $this->translationIntroduction = false;
+        $this->priorFascicleSummary = false;
+        $this->thisFascicleSummary = false;
+        $this->translationInstruction = false;
+        $this->properNounInstruction = false;
+        $this->resummarizeFascicle = false;
+        $this->resummarizePriorFascicles = false;
     }
 
-    $count = count($this->paragraphTranslations);
-    for ($i = 0; $i < $count; ++$i) {
-      $paragraphTranslation = $this->paragraphTranslations[$i];
-      $isLast = ($i + 1 == $count);
-      $continue = $paragraphTranslation->translate($textTranslation, $this, $session, $isLast, $text);
+    static function initial($textPath, $promptsPath, $workPath) {
+        $state = new TranslationState();
+        $state->textPath = $textPath;
+        $state->workPath = $workPath;
+        $state->promptsPath = $promptsPath;
 
-      if (!$continue) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-}
-
-class ParagraphTranslation {
-  var $paragraphName;
-  var $chinese;
-  var $translation;
-  var $properNouns;
-
-  // Informational only
-  var $fascicleName;
-
-  function __construct($paragraphName) {
-    $this->paragraphName = $paragraphName;
-    $this->chinese = null;
-    $this->translation = null;
-  }
-
-  function fascicleName($v) {
-    $this->fascicleName = $v;
-    return $this;
-  }
-
-  function chinese($v) {
-    $this->chinese = $v;
-    return $this;
-  }
-
-  function translation($v) {
-    $this->translation = $v;
-    return $this;
-  }
-
-  function properNouns($v) {
-    $this->properNouns = $v;
-    return $this;
-  }
-
-  function translate ($textTranslation, $fascicleTranslation, $session, $isLast, $text) {
-    if ($this->chinese === null) {
-      $this->chinese = $text->getFascicle($fascicleTranslation->fascicleName)->getParagraph($this->paragraphName)->text;
-    }
-
-    if ($this->translation === null) {
-      $session->raiseCustomEvent('paragraphStart', $this);
-
-      $convo = $session->conversation();
-      $convo->addUserMessage($textTranslation->translationIntroduction->format($textTranslation->title));
-      if ($textTranslation->summary != null) {
-        $convo->addUserMessage($textTranslation->priorFascicleSummary->format($textTranslation->summary));
-      }
-      if ($fascicleTranslation->summary != null) {
-        $convo->addUserMessage($textTranslation->thisFascicleSummary->format($fascicleTranslation->summary));
-      }
-
-      $properNouns = false;
-      foreach ($textTranslation->properNouns as $source => $list) {
-        if (mb_strpos($this->chinese, $source) !== false) {
-          foreach ($list as $properNoun) {
-            if ($properNouns === false) {
-              $properNouns = "$properNoun->source, $properNoun->target";
+        try {
+            $state->text = Text::fromPath($textPath);
+            if ($state->text->firstParagraph === false) {
+                $state->status = SubState::EndOfText;
             } else {
-              $properNouns .= "$properNouns; $properNoun->source, $properNoun->target";
+                $state->fascicleName = $state->text->firstParagraph->fascicle->name;
+                $state->paragraphNumber = $state->text->firstParagraph->number;
+                $state->status = SubState::ReadyToTranslate;
             }
-          }
+
+            $state->loadPrompts();
+        } catch (Exception $e) {
+            $state->status = SubState::UnrecoverableError;
+            $state->statusDetail = $e->getMessage();
         }
-      }
 
-      if ($properNouns !== false) {
-        $convo->addUserMessage($textTranslation->listProperNouns->format($properNouns));
-      }
-
-      $this->translation = $convo->ask($textTranslation->translationInstruction->format($this->chinese), 'END_OF_TRANSLATION');
-      $this->properNouns = $convo->ask($textTranslation->properNounInstruction->format(), 'END_OF_LIST');
-
-      $list = parseAnnotations($this->properNouns, 'END_OF_LIST');
-
-      foreach ($list as $properNoun) {
-        if (isset($textTranslation->properNouns[$properNoun->source])) {
-          $foundIt = false;
-          foreach ($textTranslation->properNouns[$properNoun->source] as $existing) {
-            if ($existing->target == $properNoun->target) {
-              $foundIt = true;
-            }
-          }
-
-          if ($foundIt) {
-          } else {
-            $textTranslation->properNouns[$properNoun->source][] = $properNoun;
-          }
-        } else {
-          $textTranslation->properNouns[$properNoun->source] = array($properNoun);
-        }
-      }
-
-      $fascicleTranslation->summary = $convo->ask($textTranslation->resummarizeFascicle->format());
-
-      if ($isLast) {
-        $textTranslation->summary = $convo->ask($textTranslation->resummarizePriorFascicles->format());
-      }
-
-      if ($session->checkLimits() == false) {
-        return false;
-      }
-
-      $textTranslation->save();
+        return $state;
     }
 
-    return true;
-  }
+    static function fromWorkFile($workPath) {
+        $state = new TranslationState();
+        $state->workPath = $workPath;
+
+        $data = json_decode(file_get_contents($workPath));
+        $state->textPath = $data->textPath;
+        $state->fascicleName = $data->fascicleName;
+        $state->paragraphNumber = $data->paragraphNumber;
+        $state->textSummary = $data->textSummary;
+        $state->fascicleSummary = $data->fascicleSummary;
+        $state->consecutiveErrorCount = $data->consecutiveErrorCount;
+        switch ($data->status) {
+            case 'Uninitialized':
+                $state->status = SubState::Uninitialized;
+                break;
+            case 'ReadyToTranslate':
+                $state->status = SubState::ReadyToTranslate;
+                break;
+            case 'DoneTranslating':
+                $state->status = SubState::DoneTranslating;
+                break;
+            case 'PossiblyRecoverableError':
+                $state->status = SubState::PossiblyRecoverableError;
+                break;
+            case 'UnrecoverableError':
+                $state->status = SubState::UnrecoverableError;
+                break;
+            case 'EndOfText':
+                $state->status = SubState::EndOfText;
+                break;
+        }
+
+        $state->promptsPath = $data->promptsPath;
+        $state->text = Text::fromPath($state->textPath);
+
+        $state->loadPrompts();
+
+        return $state;
+    }
+
+    function loadPrompts() {
+        $templates = new \Deepseek\PromptTemplateFile($this->promptsPath);
+        $this->translationIntroduction = $templates->templates['translationIntroduction'];
+        $this->priorFascicleSummary = $templates->templates['priorFascicleSummary'];
+        $this->thisFascicleSummary = $templates->templates['thisFascicleSummary'];
+        $this->translationInstruction = $templates->templates['translationInstruction'];
+        $this->properNounInstruction = $templates->templates['properNounInstruction'];
+        $this->resummarizeFascicle = $templates->templates['resummarizeFascicle'];
+        $this->resummarizePriorFascicles = $templates->templates['resummarizePriorFascicles'];
+    }
+
+    function getCurrentParagraph() {
+        $fascicle = $this->text->fascicles[$this->fascicleName];
+        return $fascicle->paragraphs[$this->paragraphNumber];
+    }
+
+    function save() {
+        $data = array();
+        $data['textPath'] = $this->textPath;
+        $data['fascicleName'] = $this->fascicleName;
+        $data['paragraphNumber'] = $this->paragraphNumber;
+        $data['textSummary'] = $this->textSummary;
+        $data['fascicleSummary'] = $this->fascicleSummary;
+
+        switch ($this->status) {
+            case SubState::Uninitialized:
+                $data['status'] = 'Uninitialized';
+                break;
+            case SubState::ReadyToTranslate:
+                $data['status'] = 'ReadyToTranslate';
+                break;
+            case SubState::DoneTranslating:
+                $data['status'] = 'DoneTranslating';
+                break;
+            case SubState::PossiblyRecoverableError:
+                $data['status'] = 'PossiblyRecoverableError';
+                break;
+            case SubState::UnrecoverableError:
+                $data['status'] = 'UnrecoverableError';
+                break;
+            case SubState::EndOfText:
+                $data['status'] = 'EndOfText';
+                break;
+        }
+
+        $data['statusDetail'] = $this->statusDetail;
+        $data['consecutiveErrorCount'] = $this->consecutiveErrorCount;
+        $data['promptsPath'] = $this->promptsPath;
+
+        file_put_contents($this->workPath, json_encode($data));
+    }
+
+    function moreToTranslate() {
+print "State: " . gettype($this->status) . "\n";
+        switch ($this->status) {
+            case SubState::Uninitialized:
+                return false;
+                break;
+            case SubState::ReadyToTranslate:
+                return true;
+                break;
+            case SubState::DoneTranslating:
+                $currentParagraph = $this->getCurrentParagraph();
+                return ($currentParagraph->nextParagraph !== false);
+                break;
+            case SubState::PossiblyRecoverableError:
+                return true;
+                break;
+            case SubState::UnrecoverableError:
+                return false;
+                break;
+            case SubState::EndOfText:
+                return false;
+                break;
+        }
+
+        // Unrecoverable error or end of text
+        return false;
+    }
+
+    // Advance to state 1, ready to translate, if possible
+    function getReadyToTranslate() {
+        switch ($this->status) {
+            case SubState::Uninitialized:
+                return false;
+                break;
+            case SubState::ReadyToTranslate:
+                return true;
+                break;
+            case SubState::DoneTranslating:
+                $currentParagraph = $this->getCurrentParagraph();
+                $nextParagraph = $currentParagraph->nextParagraph;
+                if ($nextParagraph === false) {
+                    return false;
+                }
+                $this->fascicleName = $nextParagraph->fascicle->name;
+                $this->paragraphNumber = $nextParagraph->number;
+                return true;
+                break;
+            case SubState::PossiblyRecoverableError:
+                return true;
+                break;
+            case SubState::UnrecoverableError:
+                return false;
+                break;
+            case SubState::EndOfText:
+                return false;
+                break;
+        }
+    }
+
+    // Translate
+    function translate($session) {
+        try {
+            $this->translation = false;
+            $this->properNouns = false;
+
+            $paragraph = $this->getCurrentParagraph();
+
+            if ($paragraph == false) {
+                $this->status = SubState::UnrecoverableError;
+                $this->statusDetail = "Could not get paragraph";
+                return;
+            }
+
+            $convo = $session->conversation();
+
+            $convo->addUserMessage($this->translationIntroduction->format($this->text->title));
+            if ($this->textSummary != false) {
+                $convo->addUserMessage($this->priorFascicleSummary->format($this->textSummary));
+            }
+            if ($this->fascicleSummary != false) {
+                $convo->addUserMessage($this->thisFascicleSummary->format($this->fascicleSummary));
+            }
+
+            $this->translation = $convo->ask($this->translationInstruction->format($paragraph->content), 'END_OF_TRANSLATION');
+
+            if ($this->translation == false) {
+                $this->status = SubState::PossiblyRecoverableError;
+                $this->statusDetail = 'Failed to get translation';
+                return;
+            }
+
+            $this->properNouns = $convo->ask($this->properNounInstruction->format(), 'END_OF_LIST');
+
+            if ($this->properNouns == false) {
+                $this->status = SubState::PossiblyRecoverableError;
+                $this->statusDetail = 'Failed to get proper nouns';
+                return;
+            }
+
+            $this->thisFascicleSummary = $convo->ask($this->resummarizeFascicle->format());
+
+            if ($this->thisFascicleSummary == false) {
+                $this->status = SubState::PossiblyRecoverableError;
+                $this->statusDetail = 'Failed to get fascicle summary';
+                return;
+            }
+
+            if ($paragraph->nextParagraph === false || $paragraph->nextParagraph->fascicle != $paragraph->fascicle) {
+                $this->textSummary = $convo->ask($this->resummarizePriorFascicles->format());
+                $this->statusDetail = 'Failed to get text summary';
+            }
+
+            $this->status = SubState::DoneTranslating;
+        } catch (Exception $e) {
+            $this->status = SubState::UnrecoverableError;
+            $this->statusDetail = $e->getMessage();
+        }
+    }
 }
+
