@@ -3,14 +3,12 @@
 require_once('text.inc.php');
 require_once('deepseek.inc.php');
 
-enum SubState {
-    case Uninitialized;
-    case ReadyToTranslate;
-    case DoneTranslating;
-    case PossiblyRecoverableError;
-    case UnrecoverableError;
-    case EndOfText;
-}
+$subStateUninitialized = 0;
+$subStateReadyToTranslate = 1;
+$subStateDoneTranslating = 2;
+$subStatePossiblyRecoverableError = 3;
+$subStateUnrecoverableError = 4;
+$subStateEndOfText = 5;
 
 class TranslationState {
     var $textPath;
@@ -48,7 +46,7 @@ class TranslationState {
         $this->fascicleSummary = false;
         $this->translation = false;
         $this->properNouns = false;
-        $this->status = SubState::Uninitialized;
+        $this->status = $subStateUninitialized;
         $this->statusDetail = false;
         $this->consecutiveErrorCount = 0;
         $this->translationIntroduction = false;
@@ -69,16 +67,16 @@ class TranslationState {
         try {
             $state->text = Text::fromPath($textPath);
             if ($state->text->firstParagraph === false) {
-                $state->status = SubState::EndOfText;
+                $state->status = $subStateEndOfText;
             } else {
                 $state->fascicleName = $state->text->firstParagraph->fascicle->name;
                 $state->paragraphNumber = $state->text->firstParagraph->number;
-                $state->status = SubState::ReadyToTranslate;
+                $state->status = $subStateReadyToTranslate;
             }
 
             $state->loadPrompts();
         } catch (Exception $e) {
-            $state->status = SubState::UnrecoverableError;
+            $state->status = $subStateUnrecoverableError;
             $state->statusDetail = $e->getMessage();
         }
 
@@ -98,22 +96,22 @@ class TranslationState {
         $state->consecutiveErrorCount = $data->consecutiveErrorCount;
         switch ($data->status) {
             case 'Uninitialized':
-                $state->status = SubState::Uninitialized;
+                $state->status = $subStateUninitialized;
                 break;
             case 'ReadyToTranslate':
-                $state->status = SubState::ReadyToTranslate;
+                $state->status = $subStateReadyToTranslate;
                 break;
             case 'DoneTranslating':
-                $state->status = SubState::DoneTranslating;
+                $state->status = $subStateDoneTranslating;
                 break;
             case 'PossiblyRecoverableError':
-                $state->status = SubState::PossiblyRecoverableError;
+                $state->status = $subStatePossiblyRecoverableError;
                 break;
             case 'UnrecoverableError':
-                $state->status = SubState::UnrecoverableError;
+                $state->status = $subStateUnrecoverableError;
                 break;
             case 'EndOfText':
-                $state->status = SubState::EndOfText;
+                $state->status = $subStateEndOfText;
                 break;
         }
 
@@ -150,22 +148,22 @@ class TranslationState {
         $data['fascicleSummary'] = $this->fascicleSummary;
 
         switch ($this->status) {
-            case SubState::Uninitialized:
+            case $subStateUninitialized:
                 $data['status'] = 'Uninitialized';
                 break;
-            case SubState::ReadyToTranslate:
+            case $subStateReadyToTranslate:
                 $data['status'] = 'ReadyToTranslate';
                 break;
-            case SubState::DoneTranslating:
+            case $subStateDoneTranslating:
                 $data['status'] = 'DoneTranslating';
                 break;
-            case SubState::PossiblyRecoverableError:
+            case $subStatePossiblyRecoverableError:
                 $data['status'] = 'PossiblyRecoverableError';
                 break;
-            case SubState::UnrecoverableError:
+            case $subStateUnrecoverableError:
                 $data['status'] = 'UnrecoverableError';
                 break;
-            case SubState::EndOfText:
+            case $subStateEndOfText:
                 $data['status'] = 'EndOfText';
                 break;
         }
@@ -179,23 +177,23 @@ class TranslationState {
 
     function moreToTranslate() {
         switch ($this->status) {
-            case SubState::Uninitialized:
+            case $subStateUninitialized:
                 return false;
                 break;
-            case SubState::ReadyToTranslate:
+            case $subStateReadyToTranslate:
                 return true;
                 break;
-            case SubState::DoneTranslating:
+            case $subStateDoneTranslating:
                 $currentParagraph = $this->getCurrentParagraph();
                 return ($currentParagraph->nextParagraph !== false);
                 break;
-            case SubState::PossiblyRecoverableError:
+            case $subStatePossiblyRecoverableError:
                 return true;
                 break;
-            case SubState::UnrecoverableError:
+            case $subStateUnrecoverableError:
                 return false;
                 break;
-            case SubState::EndOfText:
+            case $subStateEndOfText:
                 return false;
                 break;
         }
@@ -207,13 +205,13 @@ class TranslationState {
     // Advance to state 1, ready to translate, if possible
     function getReadyToTranslate() {
         switch ($this->status) {
-            case SubState::Uninitialized:
+            case $subStateUninitialized:
                 return false;
                 break;
-            case SubState::ReadyToTranslate:
+            case $subStateReadyToTranslate:
                 return true;
                 break;
-            case SubState::DoneTranslating:
+            case $subStateDoneTranslating:
                 $currentParagraph = $this->getCurrentParagraph();
                 $nextParagraph = $currentParagraph->nextParagraph;
                 if ($nextParagraph === false) {
@@ -223,13 +221,13 @@ class TranslationState {
                 $this->paragraphNumber = $nextParagraph->number;
                 return true;
                 break;
-            case SubState::PossiblyRecoverableError:
+            case $subStatePossiblyRecoverableError:
                 return true;
                 break;
-            case SubState::UnrecoverableError:
+            case $subStateUnrecoverableError:
                 return false;
                 break;
-            case SubState::EndOfText:
+            case $subStateEndOfText:
                 return false;
                 break;
         }
@@ -244,7 +242,7 @@ class TranslationState {
             $paragraph = $this->getCurrentParagraph();
 
             if ($paragraph == false) {
-                $this->status = SubState::UnrecoverableError;
+                $this->status = $subStateUnrecoverableError;
                 $this->statusDetail = "Could not get paragraph";
                 return;
             }
@@ -262,7 +260,7 @@ class TranslationState {
             $this->translation = $convo->ask($this->translationInstruction->format($paragraph->content), 'END_OF_TRANSLATION');
 
             if ($this->translation == false) {
-                $this->status = SubState::PossiblyRecoverableError;
+                $this->status = $subStatePossiblyRecoverableError;
                 ++$this->consecutiveErrorCount;
                 $this->statusDetail = 'Failed to get translation';
                 return;
@@ -271,7 +269,7 @@ class TranslationState {
             $this->properNouns = $convo->ask($this->properNounInstruction->format(), 'END_OF_LIST');
 
             if ($this->properNouns == false) {
-                $this->status = SubState::PossiblyRecoverableError;
+                $this->status = $subStatePossiblyRecoverableError;
                 $this->statusDetail = 'Failed to get proper nouns';
                 return;
             }
@@ -279,7 +277,7 @@ class TranslationState {
             $this->thisFascicleSummary = $convo->ask($this->resummarizeFascicle->format());
 
             if ($this->thisFascicleSummary == false) {
-                $this->status = SubState::PossiblyRecoverableError;
+                $this->status = $subStatePossiblyRecoverableError;
                 ++$this->consecutiveErrorCount;
                 $this->statusDetail = 'Failed to get fascicle summary';
                 return;
@@ -290,10 +288,10 @@ class TranslationState {
                 $this->statusDetail = 'Failed to get text summary';
             }
 
-            $this->status = SubState::DoneTranslating;
+            $this->status = $subStateDoneTranslating;
             $this->consecutiveErrorCount = 0;
         } catch (Exception $e) {
-            $this->status = SubState::UnrecoverableError;
+            $this->status = $subStateUnrecoverableError;
             $this->statusDetail = $e->getMessage();
         }
     }
