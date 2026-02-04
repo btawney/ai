@@ -178,7 +178,6 @@ class TranslationState {
     }
 
     function moreToTranslate() {
-print "State: " . gettype($this->status) . "\n";
         switch ($this->status) {
             case SubState::Uninitialized:
                 return false;
@@ -264,6 +263,7 @@ print "State: " . gettype($this->status) . "\n";
 
             if ($this->translation == false) {
                 $this->status = SubState::PossiblyRecoverableError;
+                ++$this->consecutiveErrorCount;
                 $this->statusDetail = 'Failed to get translation';
                 return;
             }
@@ -280,6 +280,7 @@ print "State: " . gettype($this->status) . "\n";
 
             if ($this->thisFascicleSummary == false) {
                 $this->status = SubState::PossiblyRecoverableError;
+                ++$this->consecutiveErrorCount;
                 $this->statusDetail = 'Failed to get fascicle summary';
                 return;
             }
@@ -290,6 +291,7 @@ print "State: " . gettype($this->status) . "\n";
             }
 
             $this->status = SubState::DoneTranslating;
+            $this->consecutiveErrorCount = 0;
         } catch (Exception $e) {
             $this->status = SubState::UnrecoverableError;
             $this->statusDetail = $e->getMessage();
