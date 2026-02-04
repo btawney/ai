@@ -1,7 +1,7 @@
 <?php // translate.php
 
 require_once('../translate.inc.php');
-require_once('deepseek.inc.php');
+require_once('../deepseek.inc.php');
 
 $sourceFile = false;
 $maximumConsecutiveErrors = 5;
@@ -113,7 +113,7 @@ while (
 	&& $session->balance() > $minimumBalanceInDollars
 	) {
 	print "Fascicle $state->fascicleName paragraph $state->paragraphNumber\n";
-	
+
     $state->getReadyToTranslate();
     $state->translate($session);
     $state->save();
