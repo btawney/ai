@@ -267,9 +267,9 @@ class TranslationState {
                 return;
             }
 
-            $this->thisFascicleSummary = $convo->ask($this->resummarizeFascicle->format());
+            $this->fascicleSummary = $convo->ask($this->resummarizeFascicle->format());
 
-            if ($this->thisFascicleSummary == false) {
+            if ($this->fascicleSummary == false) {
                 $this->status = 'RETRY';
                 ++$this->consecutiveErrorCount;
                 $this->statusDetail = 'Failed to get fascicle summary';
