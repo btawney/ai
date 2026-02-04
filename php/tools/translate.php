@@ -124,7 +124,7 @@ while (
     	'consecutiveErrorCount' => $state->consecutiveErrorCount
     );
 
-    $f = fopen($outputFile);
+    $f = fopen($outputFile, 'a');
     fputs($f, json_encode($data) . "\n");
     fclose($f);
 }
