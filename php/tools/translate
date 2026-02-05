@@ -1,0 +1,6 @@
+#!/bin/bash
+
+cd `dirname $0`
+
+/usr/bin/php ./translate.php ../../texts/$1.txt -workDir ~/texts/work -max-runtime 2
+
