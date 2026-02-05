@@ -2,5 +2,6 @@
 
 cd `dirname $0`
 
+date
 /usr/bin/php ./translate.php ../../texts/$1.txt -workDir ~/texts/work -max-runtime 2
 
