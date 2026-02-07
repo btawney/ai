@@ -17,6 +17,12 @@ class TranslationState {
     var $properNouns;
     var $consecutiveErrorCount;
 
+    // Statistics
+    var $startTime;
+    var $endTime;
+    var $startBalance;
+    var $endBalance;
+
     // Prompts
     var $translationIntroduction;
     var $priorFascicleSummary;
@@ -231,12 +237,16 @@ class TranslationState {
         try {
             $this->translation = false;
             $this->properNouns = false;
+            $this->startTime = time();
+            $this->startBalance = $session->balance();
 
             $paragraph = $this->getCurrentParagraph();
 
             if ($paragraph == false) {
                 $this->status = 'UNRECOVERABLE';
                 $this->statusDetail = "Could not get paragraph";
+                $this->endTime = time();
+                $this->endBalance = $session->balance();
                 return;
             }
 
@@ -256,6 +266,8 @@ class TranslationState {
                 $this->status = 'RETRY';
                 ++$this->consecutiveErrorCount;
                 $this->statusDetail = 'Failed to get translation';
+                $this->endTime = time();
+                $this->endBalance = $session->balance();
                 return;
             }
 
@@ -264,6 +276,8 @@ class TranslationState {
             if ($this->properNouns == false) {
                 $this->status = 'RETRY';
                 $this->statusDetail = 'Failed to get proper nouns';
+                $this->endTime = time();
+                $this->endBalance = $session->balance();
                 return;
             }
 
@@ -273,6 +287,8 @@ class TranslationState {
                 $this->status = 'RETRY';
                 ++$this->consecutiveErrorCount;
                 $this->statusDetail = 'Failed to get fascicle summary';
+                $this->endTime = time();
+                $this->endBalance = $session->balance();
                 return;
             }
 
@@ -287,6 +303,9 @@ class TranslationState {
             $this->status = 'UNRECOVERABLE';
             $this->statusDetail = $e->getMessage();
         }
+
+        $this->endTime = time();
+        $this->endBalance = $session->balance();
     }
 }
 
