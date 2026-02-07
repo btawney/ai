@@ -1,6 +1,7 @@
 <?php // translate.php
 
 require_once('../translate.inc.php');
+require_once('../translationLog.inc.php');
 require_once('../deepseek.inc.php');
 
 $sourceFile = false;
@@ -108,23 +109,5 @@ while (
     $state->translate($session);
     $state->save();
 
-    // Write to output file 
-    $data = array(
-    	'time' => time(),
-    	'secondsRemaining' => $endTime - time(),
-    	'balanceRemaining' => $session->balance() - $minimumBalanceInDollars,
-    	'status' => $state->status,
-    	'statusDetail' => $state->statusDetail,
-    	'fascicleName' => $state->fascicleName,
-    	'paragraphNumber' => $state->paragraphNumber,
-    	'textSummary' => $state->textSummary,
-    	'fascicleSummary' => $state->fascicleSummary,
-    	'translation' => $state->translation,
-    	'properNouns' => $state->properNouns,
-    	'consecutiveErrorCount' => $state->consecutiveErrorCount
-    );
-
-    $f = fopen($outputFile, 'a');
-    fputs($f, json_encode($data) . "\n");
-    fclose($f);
+    appendLog($state, $outputFile);
 }
