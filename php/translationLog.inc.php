@@ -3,6 +3,7 @@
 function appendLog($state, $outputFile) {
     // Write to output file 
     $data = array(
+    	'time' => time(),
     	'elapsedTime' => $state->endTime - $state->startTime,
     	'consumedCost' => $state->endBalance - $state->startBalance,
     	'status' => $state->status,
@@ -20,7 +21,7 @@ function appendLog($state, $outputFile) {
 	    $f = fopen($outputFile, 'a');
     } else {
 	    $f = fopen($outputFile, 'w');
-	    fputs($f, "LOGVERSION:1\n");
+	    fputs($f, "LOGVERSION:2\n");
     }
     fputs($f, json_encode($data) . "\n");
     fclose($f);
@@ -58,6 +59,20 @@ function readLog($path) {
 				$entry->properNouns = $data->properNouns;
 				$entry->consecutiveErrorCount = $data->consecutiveErrorCount;
 				break;
+			case '2':
+				$entry->time = $data->time;
+				$entry->elapsedTime = $data->elapsedTime;
+				$entry->consumedCost = $data->consumedCost;
+				$entry->status = $data->status;
+				$entry->statusDetail = $data->statusDetail;
+				$entry->fascicleName = $data->fascicleName;
+				$entry->paragraphNumber = $data->paragraphNumber;
+				$entry->textSummary = $data->textSummary;
+				$entry->fascicleSummary = $data->fascicleSummary;
+				$entry->translation = $data->translation;
+				$entry->properNouns = $data->properNouns;
+				$entry->consecutiveErrorCount = $data->consecutiveErrorCount;
+				break;
 		}
 	}
 
@@ -65,6 +80,7 @@ function readLog($path) {
 }
 
 class LogEntry {
+	var $time;
 	var $elapsedTime;
 	var $consumedCost;
 	var $status;
