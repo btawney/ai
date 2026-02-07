@@ -41,7 +41,24 @@ function readLog($path) {
 
 	while (($line = fgets($f)) !== false) {
 		$data = json_decode($line);
+		$entry = new LogEntry();
+		$entries[] = $entry;
 
+		switch ($version) {
+			case '1':
+				$entry->elapsedTime = $data->elapsedTime;
+				$entry->consumedCost = $data->consumedCost;
+				$entry->status = $data->status;
+				$entry->statusDetail = $data->statusDetail;
+				$entry->fascicleName = $data->fascicleName;
+				$entry->paragraphNumber = $data->paragraphNumber;
+				$entry->textSummary = $data->textSummary;
+				$entry->fascicleSummary = $data->fascicleSummary;
+				$entry->translation = $data->translation;
+				$entry->properNouns = $data->properNouns;
+				$entry->consecutiveErrorCount = $data->consecutiveErrorCount;
+				break;
+		}
 	}
 
 	return $entries;
