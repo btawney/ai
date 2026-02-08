@@ -42,6 +42,11 @@ function readLog($path) {
 
 	while (($line = fgets($f)) !== false) {
 		$data = json_decode($line);
+
+		if ($data->status != 'DONE_TRANSLATING') {
+			continue;
+		}
+
 		$entry = new LogEntry();
 		$entries[] = $entry;
 
