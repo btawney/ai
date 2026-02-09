@@ -1,0 +1,6 @@
+#!/bin/bash
+
+cd `dirname $0`
+
+/usr/bin/php ./exportTranslation.php ~/texts/work/$1.out ~/texts/work/$1.txt
+
