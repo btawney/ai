@@ -259,10 +259,10 @@ class IndexEntryTranslation {
 					break;
 				}
 			}
-		}
 
-		if (!$exists) {
-			$this->notes[] = $notes;
+			if (!$exists) {
+				$this->notes[] = $notes;
+			}
 		}
 	}
 }
