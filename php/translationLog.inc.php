@@ -151,7 +151,7 @@ class TranslatedText {
 
 	        $parsed = parseAnnotation($entry->properNouns);
 
-	        foreach ($result as $item) {
+	        foreach ($parsed as $item) {
 	        	$text->appendIndexEntry($item->source, $item->type, $item->target, $currentParagraph, $item->notes);
 	        }
 	    }
