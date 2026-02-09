@@ -3,5 +3,5 @@
 cd `dirname $0`
 
 date
-/usr/bin/php ./translate.php ../../texts/$1.txt -workDir ~/texts/work -max-runtime 10
+/usr/bin/php ./translate.php ../../texts/$1.txt -workDir /var/ai/texts/work -max-runtime 10
 
