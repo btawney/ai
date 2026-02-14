@@ -149,9 +149,9 @@ class TranslatedText {
 		        }
 	        }
 
-	        $parsed = parseAnnotation($entry->properNouns);
+	        $currentParagraph->properNouns = parseAnnotation($entry->properNouns);
 
-	        foreach ($parsed as $item) {
+	        foreach ($currentParagraph->properNouns as $item) {
 	        	$text->appendIndexEntry($item->source, $item->type, $item->target, $currentParagraph, $item->notes);
 	        }
 	    }
@@ -167,7 +167,7 @@ class TranslatedText {
     		$entry = $this->index[$name];
     	}
 
-    	$entry->append($type, $translation, $paragraph, $notes);
+    	return $entry->append($type, $translation, $paragraph, $notes);
     }
 }
 
@@ -187,17 +187,63 @@ class TranslatedParagraph {
     var $number;
 	var $translation;
 	var $notes;
+	var $properNouns;
 
 	function __construct($number) {
 	    $this->number = $number;
 	    $this->translation = array();
 	    $this->notes = array();
+		$this->properNouns = array();
+	}
+
+	function getProperNounIndexes() {
+		// Sort the proper nouns by length descending
+		$lengthProperNouns = array();
+		foreach ($this->properNouns as $properNoun) {
+			$length = strlen($properNoun->target);
+			if (empty($lengthProperNouns[$length])) {
+				$lengthProperNouns[$length] = array($properNoun->target => $properNoun);
+			} else {
+				$lengthProperNouns[$length][$properNoun->target] = $properNoun;
+			}
+		}
+		krsort($lengthProperNouns);
+
+		// Find all instances of proper nouns in translation
+		$matches = array();
+		$matched = array();
+
+		// PROBLEM WAS TRANSLATION IS AN ARRAY
+		$translationLength = strlen($this->translation);
+		for ($i = 0; $i < $translationLength; ++$i) {
+			foreach ($lengthProperNouns as $length => $properNouns) {
+				$toCompare = substr($this->translation, $i, $length);
+
+				if (isset($properNouns[$toCompare])) {
+					$matches[$i] = $properNouns[$toCompare];
+					$matched[$toCompare] = true;
+					$i += $length - 1;
+					break;
+				}
+			}
+		}
+
+		// Add in unmatched items with negative offsets
+		$o = 0;
+		foreach ($this->properNouns as $properNoun) {
+			if (empty($matched[$properNoun->target])) {
+				$matches[--$o] = $properNoun;
+			}
+		}
+
+		return $matches;
 	}
 }
 
 class IndexEntry {
 	var $name;
 	var $types;
+	var $index;
 
 	function __construct($name) {
 		$this->name = $name;
@@ -212,7 +258,7 @@ class IndexEntry {
 			$entry = $this->types[$type];
 		}
 
-		$entry->append($translation, $paragraph, $notes);
+		return $entry->append($translation, $paragraph, $notes);
 	}
 }
 
@@ -234,6 +280,8 @@ class IndexEntryType {
 		}
 
 		$entry->append($paragraph, $notes);
+
+		return $entry;
 	}
 }
 

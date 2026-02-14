@@ -65,6 +65,10 @@ foreach ($text->fascicles as $fascicle) {
 		foreach ($paragraph->notes as $line) {
 			fputs($f, "$fascicle->name.$paragraph->number.NOTES|$line\n");
 		}
+
+		foreach ($paragraph->getProperNounIndexes() as $pos => $idx) {
+			fputs($f, "$pos $idx->source|$idx->target|$idx->type\n");
+		}
 	}
 }
 
