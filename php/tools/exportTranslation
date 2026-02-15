@@ -2,5 +2,5 @@
 
 cd `dirname $0`
 
-/usr/bin/php ./exportTranslation.php ~/texts/work/$1.out ~/texts/work/$1.txt
+/usr/bin/php ./exportTranslation.php /var/ai/texts/work/$1.out /var/ai/texts/work/$1.txt
 
